@@ -1,0 +1,86 @@
+version: "3.9"
+services:
+  pixelfed-redis:
+    image: redis
+    container_name: pixelfed-redis
+    hostname: pixelfed-redis
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping || exit 1"]
+    user: 1035:100
+    environment:
+      - TZ=Europe/Berlin
+    volumes:
+      - /volume1/docker/pixelfed/redis:/data
+    restart: always
+
+  pixelfed-db:
+    image: postgres
+    container_name: pixelfed-db
+    hostname: pixelfed-db
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-d", "pixelfeddb", "-U", "pixelfed"]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    user: 1035:100
+    env_file:
+      - stack.env
+    environment:
+      - TZ=Europe/Berlin
+    volumes:
+      - /volume1/docker/pixelfed/db:/var/lib/postgresql/data
+    restart: always
+
+  pixelfed-web:
+    image: quay.io/zknt/pixelfed:latest
+    container_name: pixelfed-web
+    hostname: pixelfed-web
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: stat /etc/passwd || exit 1
+    env_file:
+      - stack.env
+    volumes:
+      - /volume1/docker/pixelfed/storage:/var/www/storage
+      - app-bootstrap:/var/www/bootstrap
+    ports:
+      - 9750:80
+    restart: always
+    depends_on:
+      pixelfed-db:
+        condition: service_started
+      pixelfed-redis:
+        condition: service_healthy
+
+  pixelfed-worker:
+    image: quay.io/zknt/pixelfed:latest
+    container_name: pixelfed-worker
+    hostname: pixelfed-worker
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: php artisan horizon:status | grep running
+      interval: 60s
+      timeout: 5s
+      retries: 1
+    env_file:
+      - stack.env
+    volumes:
+      - /volume1/docker/pixelfed/storage:/var/www/storage
+      - app-bootstrap:/var/www/bootstrap
+    restart: always
+    entrypoint: /worker-entrypoint.sh
+    depends_on:
+      pixelfed-db:
+        condition: service_started
+      pixelfed-redis:
+        condition: service_healthy
+      pixelfed-web:
+        condition: service_healthy
+volumes:
+  app-bootstrap:

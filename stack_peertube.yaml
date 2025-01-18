@@ -1,0 +1,65 @@
+version: "3.9"
+services:
+  redis:
+    image: redis:7
+    command: redis-server --requirepass redispass
+    container_name: peertube-redis
+    hostname: peertube-redis
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpu_shares: 768
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    user: 1035:100
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping || exit 1"]
+    volumes:
+      - /volume1/docker/peertube/redis:/data:rw
+    environment:
+      TZ: Europe/Berlin
+    restart: on-failure:5
+
+  db:
+    image: postgres:16
+    container_name: peertube-db
+    hostname: peertube-db
+    mem_limit: 1g
+    cpu_shares: 768
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-d", "$POSTGRES_DB", "-U", "$POSTGRES_USER"]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    volumes:
+      - /volume1/docker/peertube/db:/var/lib/postgresql/data:rw
+    env_file:
+      - stack.env
+    restart: on-failure:5
+
+  peertube:
+    image: chocobozzz/peertube:production-bookworm
+    container_name: peertube
+    hostname: peertube
+    mem_limit: 12g
+    cpu_shares: 2048
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: curl -f http://localhost:9000/ || exit 1
+    ports:
+      - 1935:1935 # Comment if you don't want to use the live feature
+      - 9510:9000
+    volumes:
+      - /volume1/docker/peertube/data:/data:rw
+      - /volume1/docker/peertube/config:/config:rw
+    env_file:
+      - stack.env
+    restart: on-failure:5
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy

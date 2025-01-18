@@ -1,0 +1,38 @@
+version: '3'
+services:
+    joplin-db:
+        restart: unless-stopped
+        image: postgres:latest
+        ports:
+            - "5432:5432"
+        volumes:
+            - /opt/joplin-server/db:/var/lib/postgresql/data
+        environment:
+            - POSTGRES_PASSWORD=yourdbpassword
+            - POSTGRES_USER=joplin
+            - POSTGRES_DB=joplin
+    joplin-app:
+        environment:
+            - APP_BASE_URL=https://joplin.my.tld
+            - APP_PORT=22300
+            - POSTGRES_PASSWORD=yourdbpassword
+            - POSTGRES_DATABASE=joplin
+            - POSTGRES_USER=joplin
+            - POSTGRES_PORT=5432
+            - POSTGRES_HOST=joplin-db
+            - DB_CLIENT=pg
+            - MAILER_ENABLED=1
+            - MAILER_HOST=yoursmtphost
+            - MAILER_PORT=465
+            - MAILER_SECURITY=starttls
+            - MAILER_AUTH_USER=yourmailuser
+            - MAILER_AUTH_PASSWORD=yourmailpassword
+            - MAILER_NOREPLY_NAME=Joplin Server
+            - MAILER_NOREPLY_EMAIL=joplin@my.tld
+        restart: unless-stopped
+        image: joplin/server:latest
+        ports:
+            - "22300:22300"
+
+        depends_on:
+            - joplin-db
