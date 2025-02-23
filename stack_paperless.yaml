@@ -1,0 +1,69 @@
+version: "3.6"
+services:
+  redis:
+    image: redis
+    container_name: paperless-redis
+    restart: always
+    volumes:
+      - /volume1/docker/paperlessngx/paperedis:/data
+
+  db:
+    image: postgres:14
+    container_name: paperless-db
+    restart: always
+    volumes:
+      - /volume1/docker/paperlessngx/paperdb:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: paperless
+
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx
+    container_name: paperlessngx
+    restart: always
+    depends_on:
+      - db
+      - redis
+      - gotenberg
+      - tika
+    ports:
+      - 8777:8000
+    volumes:
+      - /volume1/docker/paperlessngx/data:/usr/src/paperless/data
+      - /volume1/docker/paperlessngx/media:/usr/src/paperless/media
+      - /volume1/docker/paperlessngx/export:/usr/src/paperless/export
+      - /volume1/docker/paperlessngx/consume:/usr/src/paperless/consume
+    environment:
+      PAPERLESS_REDIS: redis://redis:6379
+      PAPERLESS_DBHOST: db
+      USERMAP_UID: 1035
+      USERMAP_GID: 100
+      PAPERLESS_TIME_ZONE: Europe/Berlin
+      PAPERLESS_ADMIN_USER: Paper-Admin
+      PAPERLESS_ADMIN_PASSWORD: Paper-Password
+      PAPERLESS_URL: https://paperless.your.tld
+      PAPERLESS_OCR_LANGUAGE: deu+eng
+      PAPERLESS_TIKA_ENABLED: 1
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://gotenberg:3000/forms/libreoffice/convert#
+      PAPERLESS_TIKA_ENDPOINT: http://tika:9998
+      PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
+      PAPERLESS_SOCIALACCOUNT_PROVIDERS: '{"openid_connect": {"APPS": [{"provider_id": "authentik","name": "Single Sign-On","client_id": "BBYulNavDLa8Co2Bzd28vHY5l5Xm5IiXQNr1B6Gm","secret": "LtNMNV2PYbNojnb5cM6dmqnhKGVPrbOLXOg2aZvdp5t46mOKRNBRt9RNproTgS5IhWb2LGKekWuhUYDBCo0cHXgbqTRoLl2nVKNfkKTXUPkPL4iV2pRr9Qk6rIgs13F3","settings": { "server_url": "https://sso.norse.social/application/o/paperless-ngx/.well-known/openid-configuration"}}]}}'
+      PAPERLESS_DISABLE_REGULAR_LOGIN: true
+
+  gotenberg:
+    image: gotenberg/gotenberg
+    restart: always
+    container_name: gotenberg
+    ports:
+      - 3000:3000
+    command:
+      - "gotenberg"
+      - "--chromium-disable-routes=true"
+  
+  tika:
+    image: ghcr.io/paperless-ngx/tika
+    container_name: tika
+    ports:
+      - 9998:9998
+    restart: always
